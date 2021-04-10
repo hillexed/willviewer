@@ -1,0 +1,101 @@
+ <!DOCTYPE html>
+<html>
+<head>
+  <title>Wills viewer</title>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.bundle.min.js"></script>
+  <style type="text/css">
+    .team_div {
+      background-color: white;
+      padding: 10px;
+      border-radius: 5px;
+      height: 100%;
+    }
+    .team_container {
+      padding: 10px;
+    }
+    body {
+      background-color: lightblue;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <br>
+    <h2>Team Wills Viewer</h2>
+    <select id="teamSelector">
+        <option value="none" id="defaultOption">Loading...</option>
+
+    </select>
+    <div class="row" id=wills></div>
+    <small>If there are any issues, please contact @DLareau on discord. </small>
+  </div>
+  
+
+  <script type="text/javascript">
+
+    $.getJSON( "https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
+      wills = {};
+      teamContainers = {};
+      currentlyShownTeam = null;
+      $.getJSON( "https://api.sibr.dev/proxy/database/offseasonSetup", function(season_data) {
+        $.each(season_data.wills, function(idx, will) {
+          wills[will.id] = will.title;
+        });
+      }).then(function(){
+        let all = $('<option value="all">All</option>');
+        $("#teamSelector").append(all);
+        $("#teamSelector").on("change", function(event){
+            let teamName = event.target.value;
+            console.log(teamName);
+            for(var everyTeam in teamContainers){
+                teamContainers[everyTeam].hide();
+            }
+
+            if(teamName in teamContainers){
+                teamContainers[teamName].show();
+            }
+
+            if(teamName == "all"){
+                for(var everyTeam in teamContainers){
+                    teamContainers[everyTeam].show();
+                }
+            }
+        });
+        $.each(team_data.data, function(idx, team) {
+          if(team.data.stadium){
+            $.getJSON("https://api.sibr.dev/proxy/database/teamElectionStats", {'id': team.id}, function(wills_data) {
+              team_selection_option = $("<option value='"+team.data.nickname+"'>"+team.data.nickname+"</option>");
+              $("#teamSelector").append(team_selection_option);
+
+
+              team_container = $("<div id='"+team.data.nickname+"' class='team_container col-sm-10 col-md-6 col-lg-4 col-xl-3'></div>");
+              team_container.hide(); //hide by default 
+              team_div = $("<div class='team_div' id='" + team.id + "'></div>");
+              team_div.append("<h3 class='teamname'>" + team.data.nickname + "</h3>")
+              will_table = $("<table class='will_table table table-sm'></table>");
+              wills_data.wills.sort(function(a, b) {
+                return b.percent - a.percent;
+              });
+              for (var i = 0; i < wills_data.wills.length; i++) {
+                will_row = $("<tr class='reno_div'></tr>")
+                will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id] + "</td>")
+                will_row.append(will_elem);
+                will_table.append(will_row);
+              }
+              team_div.append(will_table);
+              team_container.append(team_div)
+              $("#wills").append(team_container);
+              teamContainers[team.data.nickname] = team_container;
+            })
+          }
+        });
+        $("#defaultOption").text("Choose a team");
+      });
+    });
+
+  </script>
+</body>
+</html>
