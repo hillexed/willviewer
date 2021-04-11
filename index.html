@@ -19,6 +19,11 @@
     body {
       background-color: lightblue;
     }
+    @media only screen and (max-width: 600px) {
+      .container {
+        font-size: 1.5rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -30,71 +35,93 @@
 
     </select>
     <div class="row" id=wills></div>
-    <small>Original <a href="https://faculty.sibr.dev/~dlareau/wills.html">here</a> by @DLareau on discord, dropdown added by hillexed. </small>
+    <small>Original <a href="https://faculty.sibr.dev/~dlareau/wills.html">here</a> by @DLareau on discord, upgraded by hillexed. </small>
   </div>
   
 
   <script type="text/javascript">
+$.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
+    wills = {};
+    teamContainers = {};
 
-    $.getJSON( "https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
-      wills = {};
-      teamContainers = {};
-      currentlyShownTeam = null;
-      $.getJSON( "https://api.sibr.dev/proxy/database/offseasonSetup", function(season_data) {
+    function showATeam(teamName){
+        for (var everyTeam in teamContainers) {
+            teamContainers[everyTeam].hide();
+        }
+
+        if (teamName in teamContainers) {
+            teamContainers[teamName].show();
+        }
+
+        if (teamName == "all") {
+            for (var everyTeam in teamContainers) {
+                teamContainers[everyTeam].show();
+            }
+        }
+        location.hash = teamName;
+    }
+
+    $.getJSON("https://api.sibr.dev/proxy/database/offseasonSetup", function(season_data) {
         $.each(season_data.wills, function(idx, will) {
-          wills[will.id] = will.title;
+            wills[will.id] = will.title;
         });
-      }).then(function(){
+    }).then(function() {
         let all = $('<option value="all">All</option>');
         $("#teamSelector").append(all);
-        $("#teamSelector").on("change", function(event){
+        $("#teamSelector").on("change", function(event) {
             let teamName = event.target.value;
-            console.log(teamName);
-            for(var everyTeam in teamContainers){
-                teamContainers[everyTeam].hide();
-            }
-
-            if(teamName in teamContainers){
-                teamContainers[teamName].show();
-            }
-
-            if(teamName == "all"){
-                for(var everyTeam in teamContainers){
-                    teamContainers[everyTeam].show();
-                }
-            }
+            showATeam(teamName);
         });
-        $.each(team_data.data, function(idx, team) {
-          if(team.data.stadium){
-            $.getJSON("https://api.sibr.dev/proxy/database/teamElectionStats", {'id': team.id}, function(wills_data) {
-              team_selection_option = $("<option value='"+team.data.nickname+"'>"+team.data.nickname+"</option>");
-              $("#teamSelector").append(team_selection_option);
 
+        Promise.all(
+            $.map(team_data.data, function(team, idx) {
+                return new Promise((resolve, reject) => {
+                    if(team.data.stadium){
+                        
+                        $.getJSON("https://api.sibr.dev/proxy/database/teamElectionStats", {
+                            'id': team.id
+                        }, function(wills_data) {
+                            team_container = $("<div id='" + team.data.nickname + "' class='team_container col-sm-10 col-md-6 col-lg-4 col-xl-3'></div>");
+                            team_container.hide(); //hide by default 
+                            team_div = $("<div class='team_div' id='" + team.id + "'></div>");
+                            team_div.append("<h3 class='teamname'>" + team.data.nickname + "</h3>")
+                            will_table = $("<table class='will_table table table-sm'></table>");
+                            wills_data.wills.sort(function(a, b) {
+                                return b.percent - a.percent;
 
-              team_container = $("<div id='"+team.data.nickname+"' class='team_container col-sm-10 col-md-6 col-lg-4 col-xl-3'></div>");
-              team_container.hide(); //hide by default 
-              team_div = $("<div class='team_div' id='" + team.id + "'></div>");
-              team_div.append("<h3 class='teamname'>" + team.data.nickname + "</h3>")
-              will_table = $("<table class='will_table table table-sm'></table>");
-              wills_data.wills.sort(function(a, b) {
-                return b.percent - a.percent;
-              });
-              for (var i = 0; i < wills_data.wills.length; i++) {
-                will_row = $("<tr class='reno_div'></tr>")
-                will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id] + "</td>")
-                will_row.append(will_elem);
-                will_table.append(will_row);
-              }
-              team_div.append(will_table);
-              team_container.append(team_div)
-              $("#wills").append(team_container);
-              teamContainers[team.data.nickname] = team_container;
+                            });
+                            for (var i = 0; i < wills_data.wills.length; i++) {
+                                will_row = $("<tr class='reno_div'></tr>")
+                                will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id] + "</td>")
+                                will_row.append(will_elem);
+                                will_table.append(will_row);
+                            }
+                            team_div.append(will_table);
+                            team_container.append(team_div);
+                            teamContainers[team.data.nickname] = team_container;
+                            resolve();
+                        })
+                    }else{
+                        resolve();
+                    }
+                });
             })
-          }
-        });
-        $("#defaultOption").text("Choose a team");
-      });
-    });
+        ).then(() => {
+            //All loaded.
+            $("#defaultOption").text("Choose a team");
+            for (var teamName of Object.keys(teamContainers).sort()) {
+                $("#wills").append(teamContainers[teamName]);
+
+                team_selection_option = $("<option value='" + teamName + "'>" + teamName + "</option>");
+                $("#teamSelector").append(team_selection_option);
+            }
+            let previouslyShownTeam = location.hash.slice(1);
+            if(previouslyShownTeam in teamContainers || previouslyShownTeam == "#all"){
+                showATeam(previouslyShownTeam);
+            }
+        })
+    })
+});
 
   </script>
 </body>
