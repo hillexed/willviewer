@@ -24,6 +24,9 @@
         font-size: 200%;
       }
     }
+    .electioasnpercent{
+        display: none; /* please don't show this, it'll only make teams more anxious */
+    }
   </style>
 </head>
 <body>
@@ -43,6 +46,45 @@
   
 
   <script type="text/javascript">
+
+function calculateElectionChances(willsData, index, numRounds = 3){
+    let applePercentages = willsData.map(will => parseFloat(will.percent)/100);
+    let chancesOfBeingChosen = willsData.map(will => 0);
+    if(index >= applePercentages.length){
+        //something's gone horribly wrong
+    }
+
+    for (var firstWillIndex = 0; firstWillIndex < applePercentages.length; firstWillIndex++) {
+        //election round 1
+        chancesOfBeingChosen[firstWillIndex] += applePercentages[firstWillIndex];
+
+        let remainingTotalPercent = applePercentages.filter((percent, index) => index != firstWillIndex).reduce((accum, cur) => accum + cur);
+
+        for (var secondWillIndex = 0; secondWillIndex < applePercentages.length; secondWillIndex++) {
+            //add chance of being chosen in election round 2
+            if(secondWillIndex == firstWillIndex){
+                continue;
+            }
+            chancesOfBeingChosen[secondWillIndex] += applePercentages[firstWillIndex] * applePercentages[secondWillIndex]/remainingTotalPercent
+
+            if(numRounds == 3){
+                let remainingTotalPercent2 = applePercentages.filter((percent, index) => index != firstWillIndex && index != secondWillIndex).reduce((accum, cur) => accum + cur);
+
+                for (var thirdWillIndex = 0; thirdWillIndex < applePercentages.length; thirdWillIndex++) {
+                    if(thirdWillIndex == firstWillIndex || thirdWillIndex == secondWillIndex){
+                        continue;
+                    }
+                    chancesOfBeingChosen[thirdWillIndex] += applePercentages[firstWillIndex] * applePercentages[secondWillIndex]/remainingTotalPercent * applePercentages[thirdWillIndex]/remainingTotalPercent2
+                }
+            }
+        }
+    }
+
+    chancesOfBeingChosen = chancesOfBeingChosen.map((decimal) => (decimal*100).toFixed(1) + "%"); //convert numbers to fancy looking strings
+
+    return chancesOfBeingChosen;
+}
+
 $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
     wills = {};
     teamContainers = {};
@@ -93,9 +135,12 @@ $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
                                 return b.percent - a.percent;
 
                             });
+                            let electionChancesTwoWills = calculateElectionChances(wills_data.wills, i, 2);
+                            let electionChancesThreeWills = calculateElectionChances(wills_data.wills, i, 3);
                             for (var i = 0; i < wills_data.wills.length; i++) {
                                 will_row = $("<tr class='reno_div'></tr>")
-                                will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id] + "</td>")
+                                will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id]+"</td>")
+                                will_elem.append($("<p class='electionpercent'> (2 wills: "+electionChancesTwoWills[i]+", 3 wills: "+electionChancesThreeWills[i]+") </p>"))
                                 will_row.append(will_elem);
                                 will_table.append(will_row);
                             }
