@@ -36,7 +36,7 @@
     <select id="teamSelector">
         <option value="none" id="defaultOption">Loading...</option>
 
-    </select>
+    </select> <span id='waitingprogress'>(Beginning analysis...)</span>
     <p>These stats are the total vote percentages so far across all votes on blaseball.com, as seen by an apple. Please keep in mind these stats may not reflect a team's intended goals, especially before Sunday. Many teams vote later in the week, meaning early votes will have a big effect on these numbers.</p>
     <p>Any talk of these percentages in the <a href="https://discord.gg/3uFgJhu">official blaseball discord</a> must be spoilered. Because the elections are always a time of high tension, using this data to antagonize or speculate on player or team motives will not be tolerated. Don't forget, even a Will with a large vote share has a very real chance of not happening!
 </p>
@@ -85,6 +85,16 @@ function calculateElectionChances(willsData, index, numRounds = 3){
     return chancesOfBeingChosen;
 }
 
+let unloadedTeams = new Set();
+
+function showWaitingProgress(){
+    if(unloadedTeams.size == 0){
+        $("#waitingprogress").text("");
+    }else{
+        $("#waitingprogress").text("("+unloadedTeams.size + " teams left...)");
+    }
+}
+
 $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
     wills = {};
     teamContainers = {};
@@ -122,6 +132,7 @@ $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
             $.map(team_data.data, function(team, idx) {
                 return new Promise((resolve, reject) => {
                     if(team.data.stadium){
+                        unloadedTeams.add(team.data.nickname);
                         
                         $.getJSON("https://api.sibr.dev/proxy/database/teamElectionStats", {
                             'id': team.id
@@ -131,16 +142,39 @@ $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
                             team_div = $("<div class='team_div' id='" + team.id + "'></div>");
                             team_div.append("<h3 class='teamname'>" + team.data.nickname + "</h3>")
                             will_table = $("<table class='will_table table table-sm'></table>");
+
+                            if(wills_data.wills.length == 0){ //no wills at all this season
+                                wills_data.wills = [
+                                    {percent: 20, id: "Shmoove"},
+                                    {percent: 30, id: "Win"},
+                                    {percent: 20, id: "Glolfify"},
+                                    {percent: 10, id: "Cinerate"},
+                                    {percent: 10, id: "Resurrect"},
+                                    {percent: 8.5, id: "Team Plunder"},
+                                    {percent: 1, id: "Self-Destruct"},
+                                    {percent: 0.5, id: 'nope'},
+                                ]
+                                wills = {
+                                    'nope':"(Just kidding! There's no wills listed for this team.)",
+                                    "Team Plunder":"Team Plunder",
+                                    "Glolfify":"Glolfify",
+                                    "Cinerate":"Cinerate",
+                                    "Shmoove":"Shmoove",
+                                    "Resurrect":"Resurrect",
+                                    "Win":"Win",
+                                    "Self-Destruct":"Self-Destruct",
+                                }
+                            }
                             wills_data.wills.sort(function(a, b) {
                                 return b.percent - a.percent;
-
                             });
-                            let electionChancesTwoWills = calculateElectionChances(wills_data.wills, i, 2);
-                            let electionChancesThreeWills = calculateElectionChances(wills_data.wills, i, 3);
+                            
+                            //let electionChancesTwoWills = calculateElectionChances(wills_data.wills, i, 2);
+                            //let electionChancesThreeWills = calculateElectionChances(wills_data.wills, i, 3);
                             for (var i = 0; i < wills_data.wills.length; i++) {
                                 will_row = $("<tr class='reno_div'></tr>")
                                 will_elem = $("<td data-toggle='tooltip'>" + wills_data.wills[i].percent + "% " + wills[wills_data.wills[i].id]+"</td>")
-                                will_elem.append($("<p class='electionpercent'> (2 wills: "+electionChancesTwoWills[i]+", 3 wills: "+electionChancesThreeWills[i]+") </p>"))
+                                //will_elem.append($("<p class='electionpercent'> (2 wills: "+electionChancesTwoWills[i]+", 3 wills: "+electionChancesThreeWills[i]+") </p>"))
                                 will_row.append(will_elem);
                                 will_table.append(will_row);
                             }
@@ -148,6 +182,8 @@ $.getJSON("https://api.sibr.dev/chronicler/v1/teams", function(team_data) {
                             team_container.append(team_div);
                             teamContainers[team.data.nickname] = team_container;
                             resolve();
+                            unloadedTeams.delete(team.data.nickname);
+                            showWaitingProgress();
                         })
                     }else{
                         resolve();
